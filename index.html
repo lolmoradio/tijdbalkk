@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronologische Tijdbalk</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        #timeline-legend {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.9em;
+        }
+
+        .legend-color-box {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #timeline-container {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden; 
+            background-color: #ffffff;
+            padding: 20px 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            position: relative; 
+        }
+        
+        #timeline-wrapper {
+            position: relative; 
+            padding-top: 50px; /* Ruimte voor de as */
+        }
+
+        #timeline-axis {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; 
+            height: 40px;
+            border-bottom: 2px solid #3498db;
+            z-index: 1;
+        }
+
+        .year-marker {
+            position: absolute;
+            bottom: 5px; 
+            transform: translateX(-50%);
+            font-size: 0.8em;
+            color: #2980b9;
+            padding: 2px 4px;
+            background-color: #fff;
+            border-radius: 3px;
+        }
+        
+        .year-marker::before {
+            content: '';
+            position: absolute;
+            bottom: -7px; 
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 7px;
+            background-color: #3498db;
+        }
+
+        #timeline-events {
+            position: relative; 
+            width: 100%; 
+        }
+
+        .event-box {
+            position: absolute;
+            padding: 8px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            font-size: 0.75em; 
+            overflow: hidden;
+            white-space: normal; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: center;
+            border: 1px solid #7f8c8d;
+            color: #2c3e50; 
+            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+            box-sizing: border-box; 
+            cursor: pointer; /* Maak duidelijk dat het klikbaar is */
+        }
+
+        .event-box:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 10; 
+        }
+
+        .event-box strong {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 3px;
+            color: #34495e;
+        }
+        .event-box .description {
+            max-height: 3.6em; /* Ongeveer 3 regels tekst */
+            overflow: hidden;
+            text-overflow: ellipsis; 
+            display: -webkit-box;
+            -webkit-line-clamp: 3; 
+            -webkit-box-orient: vertical;
+        }
+
+        /* Stijlen voor de Modal */
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 20; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.5); /* Donkerdere overlay */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto; /* Iets hoger */
+            padding: 25px;
+            border: 1px solid #888;
+            width: 85%; 
+            max-width: 600px;
+            border-radius: 10px;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 32px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        #modal-title { 
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+        #modal-category {
+            font-style: italic;
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        #modal-description {
+            font-size: 1em;
+            line-height: 1.6;
+            color: #333;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Chronologische Tijdbalk</h1>
+
+    <div id="timeline-legend"></div>
+
+    <div id="timeline-container">
+        <div id="timeline-wrapper">
+            <div id="timeline-axis"></div>
+            <div id="timeline-events"></div>
+        </div>
+    </div>
+
+    <div id="event-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 id="modal-title"></h3>
+            <p id="modal-category"></p>
+            <p id="modal-description"></p>
+        </div>
+    </div>
+
+    <script>
+        const rawData = `
+1350 (Tijdvak 5)
+Begin van de renaissance in de Italiaanse handelssteden.
+
+1450 (Tijdvak 5)
+Uitvinding van de boekdrukkunst, waardoor het humanisme zich kan verspreiden.
+
+1488 (Tijdvak 5)
+Bartolomeus Dias ontdekt Kaap de Goede Hoop.
+
+1492 (Tijdvak 5)
+Christoffel Columbus ontdekt Amerika.
+
+1515 (Tijdvak 5)
+Karel V wordt landsheer van de Nederlanden.
+
+1543 (Tijdvak 6)
+Copernicus publiceert zijn heliocentrische theorie.
+
+1555 (Tijdvak 5)
+Vrede van Augsburg; vorsten mogen zelf hun geloof bepalen.
+Filips II wordt koning van de Nederlanden.
+
+1566 (Tijdvak 5)
+Smeekschrift van de edelen, hagenpreken en Beeldenstorm.
+
+1576 (Tijdvak 5)
+Spaanse soldaten muiten; Nederlandse gewesten verbinden zich aan Willem van Oranje.
+
+1581 (Tijdvak 5)
+Plakkaat van Verlatinghe: Filips II wordt afgezworen als landsheer.
+
+1585 (Tijdvak 5)
+Spanjaarden veroveren Antwerpen.
+
+1585 (Tijdvak 6)
+Val van Antwerpen, waardoor de Republiek de Schelde kan afsluiten.
+
+1588 (Tijdvak 5)
+Oorlog tussen Engeland en Spanje; heroveringspogingen van de Nederlanden gestaakt.
+
+1585–1604 (Context 1: Britse Rijk)
+Engels-Spaanse Oorlog om religieus en koloniaal overwicht.
+
+1588 (Context 1: Britse Rijk)
+De Spaanse Armada wordt verslagen door Engeland.
+
+1598 (Tijdvak 6)
+Edict van Nantes verleent Franse calvinisten godsdienstvrijheid.
+
+1602 (Tijdvak 6)
+Oprichting van de VOC met handelsmonopolie in Azië.
+
+1604 (Context 1: Britse Rijk)
+Einde van de Engels-Spaanse Oorlog.
+
+1620 (Context 1: Britse Rijk)
+Pelgrim Fathers stichten eerste Engelse kolonie in Noord-Amerika.
+
+1621 (Tijdvak 6)
+Oprichting van de WIC voor handel met Afrika en Amerika.
+
+1625–1675 (Tijdvak 6)
+De Gouden Eeuw van de Republiek der Nederlanden.
+
+1643–1715 (Tijdvak 6)
+Regering van Lodewijk XIV: absoluut bestuur, intrekking Edict van Nantes.
+
+1648 (Tijdvak 5)
+Vrede van Münster: erkenning van de Republiek der Zeven Verenigde Nederlanden.
+
+1660 (Context 1: Britse Rijk)
+Oprichting van de Royal African Company (driehoekshandel).
+
+1675–1678 (Context 1: Britse Rijk)
+King Philip’s War: conflict tussen kolonisten en Native Americans.
+
+1687 (Tijdvak 6)
+Isaac Newton formuleert de wet van de zwaartekracht.
+
+1750 (Tijdvak 8)
+Begin van de industriële revolutie in Engeland (textielinnovaties).
+
+1756–1763 (Context 1: Britse Rijk)
+Zevenjarige Oorlog tussen Engeland en Frankrijk om koloniaal overwicht.
+
+1763 (Context 1: Britse Rijk)
+Pontiac-oorlog; Royal Proclamation verbiedt kolonisaties ten westen van de Appalachen.
+
+1764 (Context 1: Britse Rijk)
+Slag bij Buxar: Britse East India Company wint in India.
+
+1765 (Context 1: Britse Rijk)
+Verdrag van Allahabad: Britten krijgen belastingrecht in Bengalen.
+
+1773 (Tijdvak 7)
+Boston Tea Party: protest van kolonisten tegen Britse thee­belasting.
+
+1773 (Context 1: Britse Rijk)
+(zelfde gebeurtenis in Brits-Koloniale context)
+
+1775–1783 (Tijdvak 7)
+Amerikaanse Onafhankelijkheidsoorlog.
+
+1775–1783 (Context 1: Britse Rijk)
+(idem)
+
+1776 (Tijdvak 7)
+Onafhankelijkheidsverklaring VS (4 juli).
+
+1776 (Context 1: Britse Rijk)
+(idem)
+
+1783 (Tijdvak 7)
+Vrede van Parijs: erkenning Amerikaanse onafhankelijkheid.
+
+1783 (Context 1: Britse Rijk)
+(idem)
+
+1787 (Tijdvak 7)
+Eerste abolitionistische beweging in Engeland.
+
+1789 (Tijdvak 7)
+Franse Revolutie begint (bestorming Bastille, Verklaring Rechten van de Mens).
+
+1791 (Tijdvak 7)
+Eerste Franse grondwet: constitutionele monarchie.
+
+1799 (Tijdvak 7)
+Napoleon Bonaparte grijpt de macht: einde Franse Revolutie.
+
+1804 (Tijdvak 7)
+Napoleon kroont zichzelf tot keizer.
+
+1806 (Tijdvak 8)
+Nederland wordt koninkrijk onder Lodewijk Napoleon.
+
+1815 (Tijdvak 7)
+Slag bij Waterloo; Congres van Wenen – restauratie ancien régime.
+
+1815 (Tijdvak 8)
+(idem)
+
+1825 (Tijdvak 8)
+Aanleg eerste spoorlijn in Engeland.
+
+1830 (Tijdvak 8)
+België scheidt zich af van Nederland.
+
+1832 (Context 1: Britse Rijk)
+Reform Bill: hervorming kiesdistricten in Groot-Brittannië.
+
+1833 (Tijdvak 7)
+Afschaffing slavernij in Britse koloniën.
+
+1833 (Context 1: Britse Rijk)
+Factory Act: verbetering kinderarbeid.
+
+1839 (Tijdvak 8)
+Nederland erkent de onafhankelijkheid van België.
+
+1840 (Tijdvak 8)
+Willem II volgt Willem I op als koning.
+
+1846 (Context 1: Britse Rijk)
+Afschaffing Corn Laws (stimulering vrijhandel).
+
+1848 (Tijdvak 8)
+Invoering grondwet onder Willem II: constitutionele monarchie.
+
+1851 (Context 1: Britse Rijk)
+Eerste Wereldtentoonstelling in Londen.
+
+1857–1858 (Context 1: Britse Rijk)
+Indiase Opstand tegen Britse overheersing.
+
+1858 (Context 1: Britse Rijk)
+India onder direct Brits bestuur.
+
+1863 (Tijdvak 7)
+Afschaffing slavernij in Nederland.
+
+1869 (Context 1: Britse Rijk)
+Opening Suezkanaal.
+
+1870 (Tijdvak 8)
+Begin modern imperialisme (kolonisatie Afrika en Azië).
+
+1874 (Tijdvak 8)
+Kinderwetje Van Houten: verbod kinderarbeid onder 12 jaar.
+
+1879 (Tijdvak 8)
+Oprichting ARP (Anti-Revolutionaire Partij) in Nederland.
+
+1885 (Context 1: Britse Rijk)
+Oprichting Indian National Congress.
+
+1887 (Tijdvak 8)
+Uitbreiding censuskiesrecht voor mannen.
+
+1889 (Tijdvak 8)
+Invoering Arbeidswet: verbod nachtwerk voor vrouwen en jeugdigen.
+
+1903 (Tijdvak 8)
+Spoorwegstaking: vakbondsvorming geëist.
+
+1914 (Tijdvak 9)
+Aanslag op Frans Ferdinand (28 juni): oorzaak Eerste Wereldoorlog.
+
+1917 (Tijdvak 8)
+Pacificatie: algemeen mannenkiesrecht en gelijke onderwijsfinanciering.
+
+1917 (Tijdvak 9)
+VS sluit zich aan bij WO I; Russische Revolutie.
+
+1918 (Tijdvak 9)
+Einde Eerste Wereldoorlog (wapenstilstand 11 november).
+
+1918 (Context 2: Duitsland)
+Wapenstilstand; Weimarrepubliek uitgeroepen.
+
+1919 (Tijdvak 8)
+Vrouwenkiesrecht in Nederland.
+
+1919 (Context 2: Duitsland)
+Verdrag van Versailles (herstelbetalingen, territoriale verliezen).
+
+1922 (Tijdvak 9)
+Fascisten onder Mussolini aan de macht in Italië.
+
+1923 (Context 2: Duitsland)
+Hyperinflatie in Duitsland.
+
+1924 (Context 2: Duitsland)
+Dawesplan voor stabilisatie Duitse economie.
+
+1929 (Tijdvak 9)
+Beurskrach Wall Street; begin wereld­crisis.
+
+1929 (Context 2: Duitsland)
+Economische crisis na beurscrash.
+
+1933 (Tijdvak 9)
+Hitler rijkskanselier; New Deal VS; neerslaan opstand Soekarno.
+
+1933 (Tijdvak 10)
+(Nederlandse context: aansluiting NAVO, verzorgingsstaat, Indonesië-onafhankelijkheid)
+
+1933 (Context 2: Duitsland)
+Rijksdagbrand en verbanning communisten.
+
+1934 (Context 2: Duitsland)
+Hitler wordt alleenheerser na overlijden Hindenburg.
+
+1935 (Tijdvak 9)
+Neurenberg-wetten: Joden raken staats­burgerschap kwijt.
+
+1935 (Context 2: Duitsland)
+(idem)
+
+1938 (Tijdvak 9)
+Kristallnacht: grootschalige joden­vervolging.
+
+1938 (Context 2: Duitsland)
+Anschluss Oostenrijk; Conferentie van München.
+
+1939 (Tijdvak 9)
+Duitse inval in Polen (1 sept.); Molotov-Ribbentroppact.
+
+1939 (Context 2: Duitsland)
+(idem)
+
+1940 (Tijdvak 9)
+Duitse bezetting van Nederland (10 mei).
+
+1941 (Tijdvak 9)
+Operatie Barbarossa: Duitsland valt Sovjet-Unie aan.
+
+1942–1943 (Tijdvak 9)
+Slag om Stalingrad.
+
+1944–1945 (Tijdvak 9)
+Hongerwinter in Nederland.
+
+1945 (Tijdvak 9)
+Bevrijding Nederland (5 mei); einde WO II in Europa en Azië.
+
+1945 (Tijdvak 10)
+Einde WO II wereldwijd; machtsvacuüm in koloniën.
+
+1945 (Context 2: Duitsland)
+Conferentie van Jalta (feb.); overgave en Potsdam (jul–aug).
+
+1946 (Tijdvak 10)
+Rellen in India; versnelling dekolonisatieproces.
+
+1947 (Tijdvak 10)
+Onafhankelijkheid India en Pakistan.
+
+1947 (Context 2: Duitsland)
+Invoering Trumandoctrine.
+
+1948 (Tijdvak 10)
+Blokkade van West-Berlijn; luchtbrug door geallieerden.
+
+1948 (Context 3: Nederland)
+Marshallplan; Drees-minister-president; geleide loonpolitiek.
+
+1948 (Context 2: Duitsland)
+Start Marshallplan & Berlijn-blokkade/-luchtbrug.
+
+1949 (Tijdvak 10)
+Onafhankelijkheid Indonesië; oprichting NAVO; splitsing Duitsland.
+
+1949 (Context 3: Nederland)
+Lidmaatschap NAVO; werkloosheidsuitkering; immigratie Indonesiërs.
+
+1949 (Context 2: Duitsland)
+Oprichting BRD en DDR; NAVO.
+
+1951 (Context 3: Nederland)
+Lid EGKS.
+
+1952 (Tijdvak 10)
+Oprichting EGKS (Europese Gemeenschap voor Kolen en Staal).
+
+1953 (Context 2: Duitsland)
+Opstand in DDR tegen communistisch regime.
+
+1955 (Tijdvak 10)
+Oprichting Warschaupact.
+
+1955 (Context 2: Duitsland)
+BRD treedt toe tot NAVO; Warschaupact.
+
+1956 (Context 3: Nederland)
+Motie-Tendeloo: handelingsbekwaamheid getrouwde vrouwen.
+
+1957 (Context 3: Nederland)
+Invoering Algemene Ouderdomswet (AOW).
+
+1958 (Tijdvak 10)
+Oprichting EEG (Europese Economische Gemeenschap).
+
+1959 (Context 3: Nederland)
+Ontdekking aardgas in Groningen.
+
+1960 (Context 3: Nederland)
+Begin ontzuiling.
+
+1961 (Context 2: Duitsland)
+Bouw Berlijnse Muur.
+
+1962 (Tijdvak 10)
+Onafhankelijkheid Algerije.
+
+1963 (Context 3: Nederland)
+Introductie anticonceptiepil.
+
+1965 (Context 3: Nederland)
+Opkomst Provo-beweging.
+
+1966 (Context 3: Nederland)
+Oprichting politieke partij D66.
+
+1969 (Context 2: Duitsland)
+Willy Brandt wordt bondskanselier (start Ostpolitik).
+
+1971 (Context 2: Duitsland)
+Erich Honecker aan de macht in DDR.
+
+1971 (Context 3: Nederland)
+Nieuwe echtscheidingswetgeving.
+
+1973 (Tijdvak 10)
+Oliecrisis door boycot Midden-Oosten.
+
+1973 (Context 3: Nederland)
+(idem)
+
+1975 (Tijdvak 10)
+Onafhankelijkheid Suriname; immigratie naar Nederland.
+
+1975 (Context 3: Nederland)
+(idem)
+
+1980 (Context 3: Nederland)
+Krakersrellen tijdens kroning koningin Beatrix.
+
+1982 (Context 3: Nederland)
+Ruud Lubbers start liberaal beleid.
+
+1985 (Tijdvak 10)
+Gorbatsjov aan de macht; start informatiemaatschappij in Nederland.
+
+1985 (Context 3: Nederland)
+Verdrag van Schengen ondertekend.
+
+1989 (Tijdvak 10)
+Val van de Berlijnse Muur: symbolisch einde Koude Oorlog.
+
+1989 (Context 3: Nederland)
+(idem)
+
+1990 (Context 2: Duitsland)
+Hereniging van BRD en DDR (3 oktober).
+
+1991 (Context 2: Duitsland)
+Val van de Sovjet-Unie.
+
+1992 (Tijdvak 10)
+Verdrag van Maastricht ondertekend.
+
+1992 (Context 3: Nederland)
+(idem)
+
+1993 (Context 3: Nederland)
+Verdrag van Maastricht treedt in werking; oprichting EU.
+
+1995 (Context 3: Nederland)
+Val van Srebrenica tijdens Bosnische Oorlog.
+
+2001 (Context 3: Nederland)
+11 september-aanslagen VS; versterkte polarisatie in Nederland.
+
+2002 (Tijdvak 10)
+Invoering euro in de EU.
+
+2002 (Context 3: Nederland)
+Moord op Pim Fortuyn.
+
+2008 (Context 3: Nederland)
+Wereldwijde economische crisis.
+`;
+
+        const categoryColors = {
+            "Tijdvak 5": "#FFADAD", 
+            "Tijdvak 6": "#FFD6A5", 
+            "Tijdvak 7": "#FDFFB6", 
+            "Tijdvak 8": "#CAFFBF", 
+            "Tijdvak 9": "#9BF6FF", 
+            "Tijdvak 10": "#A0C4FF",
+            "Context 1: Britse Rijk": "#BDB2FF", 
+            "Context 2: Duitsland": "#FFC6FF", 
+            "Context 3: Nederland": "#E0BBE4", 
+            "default": "#D3D3D3" 
+        };
+
+        function getColorForCategory(category) {
+            if (categoryColors[category]) {
+                return categoryColors[category];
+            }
+            const tijdvakMatch = category.match(/^Tijdvak \d+/);
+            if (tijdvakMatch && categoryColors[tijdvakMatch[0]]) {
+                return categoryColors[tijdvakMatch[0]];
+            }
+            const contextMatch = category.match(/^Context \d+/);
+             if (contextMatch && categoryColors[contextMatch[0]]) { 
+                return categoryColors[contextMatch[0]];
+            }
+            return categoryColors["default"];
+        }
+
+        function parseEvents(rawData) {
+            const lines = rawData.trim().split('\n');
+            const events = [];
+            let currentDescription = "";
+            let lastEventHeader = null;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line === "") continue;
+
+                const eventHeaderRegex = /^(\d{4})(?:–(\d{4}))?\s*\((.+?)\)$/;
+                const match = line.match(eventHeaderRegex);
+
+                if (match) { 
+                    if (lastEventHeader && currentDescription) {
+                        events.push({ ...lastEventHeader, description: currentDescription.trim() });
+                    }
+                    const startYear = parseInt(match[1]);
+                    const endYear = match[2] ? parseInt(match[2]) : null;
+                    const category = match[3].trim();
+                    lastEventHeader = { startYear, endYear, category };
+                    currentDescription = ""; 
+                } else { 
+                    if (currentDescription) { 
+                        currentDescription += " " + line;
+                    } else {
+                        currentDescription = line;
+                    }
+                }
+            }
+            if (lastEventHeader && currentDescription) {
+                 events.push({ ...lastEventHeader, description: currentDescription.trim() });
+            }
+            return events;
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const events = parseEvents(rawData);
+            if (!events.length) {
+                console.error("Geen gebeurtenissen gevonden om weer te geven.");
+                return;
+            }
+
+            events.sort((a, b) => {
+                if (a.startYear !== b.startYear) {
+                    return a.startYear - b.startYear;
+                }
+                const aEnd = a.endYear || a.startYear;
+                const bEnd = b.endYear || b.startYear;
+                return aEnd - bEnd;
+            });
+            
+            const legendContainer = document.getElementById('timeline-legend');
+            const uniqueCategories = [...new Set(events.map(e => e.category))].sort();
+            uniqueCategories.forEach(category => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                const colorBox = document.createElement('div');
+                colorBox.className = 'legend-color-box';
+                colorBox.style.backgroundColor = getColorForCategory(category);
+                const legendText = document.createElement('span');
+                legendText.textContent = category;
+                legendItem.appendChild(colorBox);
+                legendItem.appendChild(legendText);
+                legendContainer.appendChild(legendItem);
+            });
+
+            const minYear = Math.min(...events.map(e => e.startYear));
+            const maxYear = Math.max(...events.map(e => e.endYear || e.startYear));
+
+            const basePixelPerYear = 8; 
+            const minEventBoxWidth = 80; 
+            const eventBoxHeight = 60; 
+            const eventBoxMargin = 5;  
+
+            const timelineAxis = document.getElementById('timeline-axis');
+            const timelineEventsContainer = document.getElementById('timeline-events');
+            const timelineWrapper = document.getElementById('timeline-wrapper');
+
+            const totalTimelineWidth = (maxYear - minYear + 1) * basePixelPerYear + 100; 
+            timelineAxis.style.width = `${totalTimelineWidth}px`;
+            timelineEventsContainer.style.width = `${totalTimelineWidth}px`;
+
+            const yearMarkerInterval = 50;
+            for (let year = minYear - (minYear % yearMarkerInterval) ; year <= maxYear; year += yearMarkerInterval) {
+                if (year < minYear) continue; 
+                const marker = document.createElement('div');
+                marker.className = 'year-marker';
+                marker.textContent = year;
+                marker.style.left = `${(year - minYear) * basePixelPerYear}px`;
+                timelineAxis.appendChild(marker);
+            }
+            
+            const lanes = []; 
+
+            events.forEach(event => {
+                const startPixel = (event.startYear - minYear) * basePixelPerYear;
+                const effectiveEndYear = event.endYear || event.startYear;
+                const durationYears = effectiveEndYear - event.startYear + 1;
+                let calculatedWidth = durationYears * basePixelPerYear;
+                calculatedWidth = Math.max(calculatedWidth, basePixelPerYear); 
+                const displayWidth = Math.max(calculatedWidth, minEventBoxWidth);
+
+                let placedInLane = false;
+                for (let i = 0; i < lanes.length; i++) {
+                    let canPlace = true;
+                    for (const placedEvent of lanes[i]) {
+                        if (startPixel < placedEvent.left + placedEvent.width && 
+                            startPixel + displayWidth > placedEvent.left) {
+                            canPlace = false;
+                            break;
+                        }
+                    }
+                    if (canPlace) {
+                        lanes[i].push({ left: startPixel, width: displayWidth });
+                        event.laneIndex = i;
+                        placedInLane = true;
+                        break;
+                    }
+                }
+
+                if (!placedInLane) {
+                    lanes.push([{ left: startPixel, width: displayWidth }]);
+                    event.laneIndex = lanes.length - 1;
+                }
+
+                const eventDiv = document.createElement('div');
+                eventDiv.className = 'event-box';
+                eventDiv.style.left = `${startPixel}px`;
+                eventDiv.style.width = `${displayWidth}px`;
+                eventDiv.style.height = `${eventBoxHeight}px`;
+                eventDiv.style.top = `${event.laneIndex * (eventBoxHeight + eventBoxMargin)}px`;
+                eventDiv.style.backgroundColor = getColorForCategory(event.category);
+                
+                // Sla de data op in dataset attributen voor de modal
+                eventDiv.dataset.startYear = event.startYear;
+                if (event.endYear) {
+                    eventDiv.dataset.endYear = event.endYear;
+                }
+                eventDiv.dataset.category = event.category;
+                eventDiv.dataset.description = event.description;
+                
+                const yearPrefix = event.endYear ? `${event.startYear}–${event.endYear}` : `${event.startYear}`;
+                eventDiv.innerHTML = `<strong>${yearPrefix}</strong><div class="description">${event.description}</div>`;
+                
+                timelineEventsContainer.appendChild(eventDiv);
+
+                // Voeg click event listener toe om de modal te openen
+                eventDiv.addEventListener('click', function() {
+                    const start = this.dataset.startYear;
+                    const end = this.dataset.endYear;
+                    const category = this.dataset.category;
+                    const description = this.dataset.description;
+
+                    document.getElementById('modal-title').textContent = end ? `${start}–${end}` : start;
+                    document.getElementById('modal-category').textContent = `(${category})`;
+                    document.getElementById('modal-description').textContent = description;
+                    
+                    modal.style.display = "block";
+                });
+            });
+            
+            const totalEventsHeight = lanes.length * (eventBoxHeight + eventBoxMargin);
+            timelineEventsContainer.style.height = `${totalEventsHeight}px`;
+            timelineWrapper.style.height = `${totalEventsHeight + 50}px`; 
+
+            // Modal functionaliteit
+            const modal = document.getElementById("event-modal");
+            const span = document.getElementsByClassName("close-button")[0];
+
+            // Wanneer de gebruiker op <span> (x) klikt, sluit de modal
+            span.onclick = function() {
+                modal.style.display = "none";
+            }
+
+            // Wanneer de gebruiker ergens buiten de modal klikt, sluit het
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
